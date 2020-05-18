@@ -18,8 +18,12 @@ public class HelloServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
+
+        String requestPath = req.getPathInfo();
+        String response = "hello heroku: " + requestPath;
+
         ServletOutputStream out = resp.getOutputStream();
-        out.write("hello heroku".getBytes());
+        out.write(response.getBytes());
         out.flush();
         out.close();
     }
