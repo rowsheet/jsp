@@ -1,4 +1,6 @@
 <html>
+<script src="/test.js"></script>
+<link rel="stylesheet" type="text/css" href="/style.css">
 <body>
     <h1>
         Hello World!
