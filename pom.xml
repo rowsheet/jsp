@@ -41,6 +41,11 @@
         <artifactId>freemarker</artifactId>
         <version>2.3.30</version>
     </dependency>
+    <dependency>
+        <groupId>org.postgresql</groupId>
+        <artifactId>postgresql</artifactId>
+        <version>42.2.13</version>
+    </dependency>
   </dependencies>
   <build>
     <finalName>embeddedTomcatSample</finalName>
