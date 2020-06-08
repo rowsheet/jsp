@@ -2,6 +2,9 @@
 <script src="/test.js"></script>
 <link rel="stylesheet" type="text/css" href="/style.css">
 <body>
+    <p>
+        <%= models.TestModel.makeItLower("TEST OTHER THING") %>
+    </p>
     <h1>
         Hello World!
         <br/>
