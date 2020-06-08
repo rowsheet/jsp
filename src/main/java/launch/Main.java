@@ -18,7 +18,7 @@ public class Main {
             PostgresDAO postgresDAO = bootstrap.LoadPostgresDAO(config);
             bootstrap.AssertDatabaseInitialization(postgresDAO);
             bootstrap.RunDatabaseMigrations(postgresDAO);
-            bootstrap.StartProductionServer();
+            bootstrap.StartProductionServer(config);
         } catch (LoadConfigException ex) {
             logger.log(Level.SEVERE, " - - - - - - - - - - - LoadConfig Exception - - - - - - - - - - - - - - - - - - -");
             logger.log(Level.INFO, ex.getMessage());

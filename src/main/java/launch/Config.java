@@ -8,14 +8,14 @@ public class Config extends Abstract {
     public final String DATA_POSTGRES_NAME;
     public final String DATA_POSTGRES_USER;
     public final String DATA_POSTGRES_PASS;
-    public final String TEST_OPTIONAL;
+    public final String WEB_APP;
 
     public Config() throws Exception {
         this.DATA_POSTGRES_HOST = getEnv("DATA_POSTGRES_HOST", true);
         this.DATA_POSTGRES_NAME = getEnv("DATA_POSTGRES_NAME", true);
         this.DATA_POSTGRES_USER = getEnv("DATA_POSTGRES_USER", true);
         this.DATA_POSTGRES_PASS = getEnv("DATA_POSTGRES_PASS", true);
-        this.TEST_OPTIONAL = getEnv("TEST_OPTIONAL", false);
+        this.WEB_APP = getEnv("WEB_APP", true);
     }
 
     private String getEnv(String name, boolean required) throws Exception {

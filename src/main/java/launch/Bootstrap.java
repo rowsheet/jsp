@@ -122,12 +122,12 @@ public class Bootstrap {
         }
     }
 
-    public void StartProductionServer() throws Exception {
-        this.runWebapp("webapp/");
+    public void StartProductionServer(Config config) throws Exception {
+        this.runWebapp(config.WEB_APP);
     }
 
     public void StartErrorServer() throws Exception {
-        this.runWebapp("webapp_error");
+        this.runWebapp("deployment_error");
     }
 
     /**
@@ -175,7 +175,7 @@ public class Bootstrap {
         }
 
         tomcat.setPort(Integer.valueOf(webPort));
-        File webContentFolder = new File(root.getAbsolutePath(), "src/main/" + dir);
+        File webContentFolder = new File(root.getAbsolutePath(), "src/main/webapps/" + dir);
         if (!webContentFolder.exists()) {
             webContentFolder = Files.createTempDirectory("default-doc-base").toFile();
         }
