@@ -4,6 +4,8 @@
 <body>
     <p>
         <%= models.TestModel.makeItLower("TEST OTHER THING") %>
+        <br>
+        <%= models.TestModel.getQueryString() %>
     </p>
     <h1>
         Hello World!
