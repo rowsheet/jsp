@@ -1,15 +1,24 @@
 package launch;
 
 import java.io.File;
+import java.io.StringWriter;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.util.HashMap;
+import java.util.Map;
 
 import data.postgresql.PostgresDAO;
 
+import freemarker.template.Configuration;
+import freemarker.template.Template;
+import launch.exceptions.AssertDatabaseInitializationException;
+import launch.exceptions.LoadConfigException;
+import launch.exceptions.LoadPostgresDAOException;
+import launch.exceptions.RunDatabaseMigrationsException;
 import org.apache.catalina.WebResourceRoot;
 import org.apache.catalina.WebResourceSet;
 import org.apache.catalina.core.StandardContext;
@@ -20,45 +29,137 @@ import org.apache.catalina.webresources.StandardRoot;
 
 public class Bootstrap {
 
-    public final Config CONFIG;
-    public final PostgresDAO PG_DAO;
-
-    /**
-     * 1) Initialize config config variables from ENV.
-     * 2) Initialize DAO and sync database.
-     *      2A) Load the DAO.
-     *      2B) Test the connection (make sure credentials work).
-     *      2C) Run migrations.
-     * 3) Initialize and start web-server.
-     * @throws Exception
-     */
     public Bootstrap() throws Exception {
-        /* Load all the config variables from ENV vars. If some are required or missing, die. */
-        this.CONFIG = new Config();
-        /* Load the Postgress data access object. */
-        this.PG_DAO = new PostgresDAO(
-                CONFIG.DATA_POSTGRES_HOST,
-                CONFIG.DATA_POSTGRES_NAME,
-                CONFIG.DATA_POSTGRES_USER,
-                CONFIG.DATA_POSTGRES_PASS);
-        /* Test connection to the DB */
-        /*
-        Connection connection = this.PG_DAO.getConnection();
-        Statement statement = null;
-        statement = connection.createStatement();
-        ResultSet resultSet = statement.executeQuery("SELECT * FROM test");
-        while (resultSet.next()) {
-            System.out.println(resultSet.getInt("id"));
-            System.out.println(resultSet.getString("username"));
-            System.out.println(resultSet.getString("password"));
-        }
-        */
-        /* Initialize the web server */
-        this.INIT_WEB_SERVER();
     }
 
+    public Config LoadConfig() throws LoadConfigException {
+        try {
+            Config config = new Config();
+            return config;
+        } catch (Exception ex) {
+           throw new LoadConfigException(ex.getMessage());
+        }
+    }
 
-    private void INIT_WEB_SERVER() throws Exception {
+    public PostgresDAO LoadPostgresDAO(Config config) throws LoadPostgresDAOException {
+        try {
+            PostgresDAO postgresDAO = new PostgresDAO(
+                    config.DATA_POSTGRES_HOST,
+                    config.DATA_POSTGRES_NAME,
+                    config.DATA_POSTGRES_USER,
+                    config.DATA_POSTGRES_PASS);
+            return postgresDAO;
+        } catch (Exception ex) {
+            throw new LoadPostgresDAOException(ex.getMessage());
+        }
+    }
+
+    /**
+     * Select how many migrations in migration tracking table.
+     * If no migration tracking table exists, create it.
+     * If created, insert a zero row for initialization.
+     * @param postgresDAO
+     * @throws AssertDatabaseInitializationException
+     */
+    public void AssertDatabaseInitialization(PostgresDAO postgresDAO) throws AssertDatabaseInitializationException {
+        try {
+            Connection connection = postgresDAO.getConnection();
+            Statement statement = null;
+            statement = connection.createStatement();
+            ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) AS total FROM internal_database_migrations");
+            int total = 0;
+            while (resultSet.next()) {
+                total = resultSet.getInt("total");
+            }
+        } catch (Exception ex) {
+            if (ex.getMessage().contains("relation \"internal_database_migrations\" does not exist")) {
+                try {
+                    String create_internal_database_migrations_sql = this.getMigrationTemplate(
+                            "init.internal_database_migrations.sql");
+                    Connection connection = postgresDAO.getConnection();
+                    connection.createStatement().execute(create_internal_database_migrations_sql);
+                    connection.close();
+                    return;
+                } catch (Exception create_table_exception) {
+                    throw new AssertDatabaseInitializationException(
+                            "Unable to create table\n" + create_table_exception.getMessage());
+                }
+            }
+            throw new AssertDatabaseInitializationException(ex.getMessage());
+        }
+    }
+
+    /**
+     * 1) Select the max applied migration_id in the migration tracking table.
+     * 2) Fetch a list of all migration files.
+     * 3) Find all files where the migration_id is greater than the max applied migration_id.
+     * 4) If applied, insert tracking row with description as migration file.
+     * @param postgresDAO
+     * @throws RunDatabaseMigrationsException
+     */
+    public void RunDatabaseMigrations(PostgresDAO postgresDAO) throws RunDatabaseMigrationsException {
+        try {
+            int max_migration = postgresDAO.QueryInt(
+                    "SELECT MAX(id) FROM internal_database_migrations",
+                    "max");
+            HashMap<Integer, String> migration_file_names = getMigrationFilenames();
+            for (Map.Entry<Integer, String> entry : migration_file_names.entrySet()) {
+                Integer migration_id = entry.getKey();
+                String filename = entry.getValue();
+                if (migration_id > max_migration) {
+                    String sql = getMigrationTemplate(filename);
+                    try {
+                        postgresDAO.Execute(sql);
+                    } catch (Exception ex) {
+                       throw new Exception(ex.getMessage());
+                    }
+                    postgresDAO.Execute("INSERT INTO internal_database_migrations (id, description) VALUES ("
+                            + Integer.toString(migration_id) + ",'" + filename + "')");
+                }
+            }
+        } catch (Exception ex) {
+            throw new RunDatabaseMigrationsException(ex.getMessage());
+        }
+    }
+
+    public void StartProductionServer() throws Exception {
+        this.runWebapp("webapp/");
+    }
+
+    public void StartErrorServer() throws Exception {
+        this.runWebapp("webapp_error");
+    }
+
+    /**
+     * HELPER FUNCTIONS
+     */
+
+    private String getMigrationTemplate(String name) throws Exception {
+        Configuration configuration = new Configuration(Configuration.VERSION_2_3_30);
+        configuration.setDirectoryForTemplateLoading(new File("."));
+        configuration.setDefaultEncoding("UTF-8");
+        Template template = configuration.getTemplate("src/main/java/data/postgresql/migrations/" + name);
+        StringWriter stringWriter = new StringWriter();
+        template.process(null, stringWriter);
+        return stringWriter.toString();
+    }
+
+    private HashMap<Integer, String> getMigrationFilenames() {
+        HashMap<Integer, String> migrations_files = new HashMap<Integer, String>();
+        File folder = new File(getRootFolder() + "/src/main/java/data/postgresql/migrations");
+        File[] files = folder.listFiles();
+        for (File file : files) {
+            String filename = file.getName();
+            String type = filename.split("\\.")[0];
+            String name = filename.split("\\.")[1];
+            if (type.equalsIgnoreCase("mig")) {
+                migrations_files.put(Integer.parseInt(name), filename);
+            }
+        }
+        return migrations_files;
+    }
+
+    private void runWebapp(String dir) throws Exception {
 
         File root = getRootFolder();
         System.setProperty("org.apache.catalina.startup.EXIT_ON_INIT_FAILURE", "true");
@@ -74,7 +175,7 @@ public class Bootstrap {
         }
 
         tomcat.setPort(Integer.valueOf(webPort));
-        File webContentFolder = new File(root.getAbsolutePath(), "src/main/webapp/");
+        File webContentFolder = new File(root.getAbsolutePath(), "src/main/" + dir);
         if (!webContentFolder.exists()) {
             webContentFolder = Files.createTempDirectory("default-doc-base").toFile();
         }
@@ -102,10 +203,6 @@ public class Bootstrap {
         tomcat.start();
         tomcat.getServer().await();
     }
-
-    /**
-     * HELPER FUNCTIONS
-     */
 
     private static File getRootFolder() {
         try {
