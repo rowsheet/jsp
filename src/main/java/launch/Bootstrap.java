@@ -42,6 +42,7 @@ public class Bootstrap {
                 CONFIG.DATA_POSTGRES_USER,
                 CONFIG.DATA_POSTGRES_PASS);
         /* Test connection to the DB */
+        /*
         Connection connection = this.PG_DAO.getConnection();
         Statement statement = null;
         statement = connection.createStatement();
@@ -51,6 +52,7 @@ public class Bootstrap {
             System.out.println(resultSet.getString("username"));
             System.out.println(resultSet.getString("password"));
         }
+        */
         /* Initialize the web server */
         this.INIT_WEB_SERVER();
     }
