@@ -1,6 +1,7 @@
 package servlet;
 
 import java.io.IOException;
+import java.util.HashMap;
 
 import javax.servlet.ServletException;
 import javax.servlet.ServletOutputStream;
@@ -18,6 +19,11 @@ public class HelloServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
+
+        HashMap<String, String> thing = new HashMap<String, String>();
+        for (int i = 0; i < thing.size(); i++) {
+
+        }
 
         String requestPath = req.getPathInfo();
         String response = "hello heroku: " + requestPath;
